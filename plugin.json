@@ -1,0 +1,134 @@
+{
+  "schema": "skill-1.0.0",
+  "hubId": "soc-logger",
+  "name": "Security Onion Log Query",
+  "version": "3.0.0",
+  "description": "Queries Security Onion logs stored in OpenSearch. Searches firewall, IDS, DNS, auth, and system logs ingested from OPNsense/pfSense and Security Onion sensors.",
+  "author": "vzeller",
+  "author_url": "https://github.com/vzeller/soc-logger",
+  "license": "MIT",
+  "active": true,
+
+  "setup_args": {
+    "OPENSEARCH_HOST": {
+      "type": "string",
+      "required": true,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "10.0.0.1",
+        "hint": "IP address or hostname of your Security Onion / OpenSearch node. Do not include https:// or a port number here."
+      },
+      "value": ""
+    },
+    "OPENSEARCH_PORT": {
+      "type": "string",
+      "required": true,
+      "input": {
+        "type": "text",
+        "default": "9200",
+        "placeholder": "9200",
+        "hint": "OpenSearch REST API port. The default for Security Onion is 9200."
+      },
+      "value": ""
+    },
+    "OPENSEARCH_API_KEY": {
+      "type": "string",
+      "required": true,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "your-base64-encoded-api-key==",
+        "hint": "OpenSearch API key in base64 format. Generate one in Security Onion Console under Administration → API Keys, or via the _security/api_key endpoint. See README for instructions."
+      },
+      "value": ""
+    },
+    "VERIFY_TLS": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "text",
+        "default": "false",
+        "placeholder": "false",
+        "hint": "Set to 'true' to verify TLS certificates (requires a valid/trusted cert on your OpenSearch node). Set to 'false' to skip verification — the default for Security Onion self-signed certificates."
+      },
+      "value": "false"
+    },
+    "DATASET_CONTEXT": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "pfsense.log=firewall logs | system.auth=SSH logins | detections.alerts=IDS alerts | zeek.notice=network anomalies",
+        "hint": "Pipe-separated list of dataset=description pairs describing your data sources. This is injected into every query result so the LLM understands what each dataset contains. Run the discovery curl command in the README to find your exact dataset names."
+      },
+      "value": ""
+    },
+    "ARCHITECTURE_NOTES": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "so-detectionhistory and so-detection are rule definition stores — NOT live alert logs. Real triggered alerts are in detections.alerts.",
+        "hint": "Free-text notes injected into every query result as context for the LLM. Describe your Security Onion architecture, data source quirks, or any important caveats about your specific setup."
+      },
+      "value": ""
+    },
+    "KNOWN_BENIGN": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "port 6881=BitTorrent (expected) | 10.0.0.1=router/gateway (normal) | fe80::/10=IPv6 link-local (normal)",
+        "hint": "Optional. Pipe-separated list of known-benign traffic patterns in your environment. Injected into query results to prevent the LLM from raising false alarms on expected traffic."
+      },
+      "value": ""
+    }
+  },
+
+  "examples": [
+    {
+      "prompt": "Show me the last 20 firewall logs",
+      "call": "{\"query\": \"*\", \"dataset\": \"pfsense.log\", \"limit\": 20}"
+    },
+    {
+      "prompt": "Are there any SSH login failures?",
+      "call": "{\"query\": \"failed\", \"dataset\": \"detections.alerts\", \"limit\": 10}"
+    },
+    {
+      "prompt": "Search all logs for a specific IP address",
+      "call": "{\"query\": \"10.0.0.100\", \"dataset\": \"*\", \"limit\": 50}"
+    },
+    {
+      "prompt": "Show me the latest IDS alerts",
+      "call": "{\"query\": \"*\", \"dataset\": \"detections.alerts\", \"limit\": 20}"
+    },
+    {
+      "prompt": "Check for blocked traffic in the firewall logs",
+      "call": "{\"query\": \"block\", \"dataset\": \"pfsense.log\", \"limit\": 25}"
+    }
+  ],
+
+  "entrypoint": {
+    "file": "handler.js",
+    "params": {
+      "query": {
+        "description": "Search keyword or OpenSearch query_string expression. Examples: 'block', 'failed', '10.0.0.1', 'ssh', '*'. Use '*' to fetch recent logs without filtering.",
+        "type": "string"
+      },
+      "limit": {
+        "description": "Number of log entries to return. Default 5, maximum 100. Use 20-50 for pattern analysis, 100 for broad threat hunting.",
+        "type": "number"
+      },
+      "dataset": {
+        "description": "Filter to a specific log dataset. Use exact event.dataset values such as: 'pfsense.log', 'system.auth', 'detections.alerts', 'zeek.notice', 'system.syslog', 'soc.detections', 'kratos.access'. Use '*' to search all datasets. Do NOT use 'so-detectionhistory' or 'so-detection' for incident investigation — they are rule definition stores, not live traffic logs.",
+        "type": "string"
+      }
+    }
+  },
+
+  "imported": true
+}
